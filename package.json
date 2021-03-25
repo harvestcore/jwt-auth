@@ -1,0 +1,39 @@
+{
+  "name": "jwt-auth",
+  "version": "0.0.1",
+  "description": "JWT Authentication API",
+  "main": "server.ts",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "run": "npx tsc && node dist/server.js",
+    "start": "nodemon server.ts"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/harvestcore/jwt-auth.git"
+  },
+  "keywords": [
+    "jwt",
+    "authentication"
+  ],
+  "author": "Ángel Gómez",
+  "license": "GPL-3.0",
+  "bugs": {
+    "url": "https://github.com/harvestcore/jwt-auth/issues"
+  },
+  "homepage": "https://github.com/harvestcore/jwt-auth",
+  "dependencies": {
+    "express": "^4.17.1",
+    "jsonwebtoken": "^8.5.1",
+    "mongodb": "^3.6.4",
+    "mongoose": "^5.12.2",
+    "uuid": "^8.3.2"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.11",
+    "nodemon": "^2.0.7",
+    "ts-node": "^9.1.1",
+    "tslint": "^6.1.3",
+    "typescript": "^4.1.5"
+  }
+}
