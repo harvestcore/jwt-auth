@@ -1,8 +1,11 @@
-import UUID from 'uuid';
+import { Document } from 'mongoose';
 
-export interface Service {
-    id: UUID;
+import Status from '../enums/Status';
+
+export interface Service extends Document {
     name: string;
-    description?: string;
-    url?: boolean;
+    enabled: Boolean;
+    status: Status;
 }
+
+export default interface IService extends Document, Service {}

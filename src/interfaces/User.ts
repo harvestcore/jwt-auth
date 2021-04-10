@@ -1,12 +1,17 @@
-import UUID from 'uuid';
+import { Document } from 'mongoose';
+
+import Rol from '../enums/Rol';
 
 export interface User {
-    id: UUID;
-    public_id: UUID;
-    name: string;
-    surname: string;
+    public_id?: string;
+    firstName?: string;
+    lastName?: string;
+    email: string;
+    telnumber?: string;
     username: string;
     password: string;
     rol: Rol;
-    enabled: boolean;
+    services: [string?];
 }
+
+export interface IUser extends User, Document {}
