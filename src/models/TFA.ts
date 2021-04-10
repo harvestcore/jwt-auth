@@ -1,6 +1,5 @@
 import mongoose, { Schema } from 'mongoose';
-import { TFA } from '../interfaces/TFA';
-import { ITFA } from '../interfaces/TFA';
+import { ITFA, TFA } from '../interfaces/TFA';
 
 export const TFASchema: Schema = new Schema(
     {
@@ -28,6 +27,12 @@ export const TFASchema: Schema = new Schema(
 export const TFAModel = mongoose.model<ITFA>('TFA', TFASchema);
 
 export function createTFA(config: TFA): Promise<TFA> {
+    if (!config.exp) {
+        const exp = new Date();
+        exp.setMinutes(exp.getMinutes() + 5);
+        config.exp = exp;
+    }
+
     return new TFAModel(config).save();
 }
 
@@ -42,7 +47,7 @@ export function increaseTFARetry(public_id: string, retries: number) {
         {
             public_id
         },
-        { $set: { retries } }
+        { $set: { retries, blocked_until: null } }
     ).exec();
 }
 
@@ -53,7 +58,7 @@ export function blockTFA(public_id: string) {
         {
             public_id
         },
-        { $set: { blocked_until } }
+        { $set: { blocked_until, retries: 0 } }
     ).exec();
 }
 

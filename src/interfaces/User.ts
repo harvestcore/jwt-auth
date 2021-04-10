@@ -10,8 +10,8 @@ export interface User {
     telnumber?: string;
     username: string;
     password: string;
-    rol: Rol;
-    services: [string?];
+    rol?: Rol;
+    services?: [string?];
 }
 
 export interface IUser extends User, Document {}

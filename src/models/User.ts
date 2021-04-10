@@ -2,8 +2,7 @@ import mongoose, { Schema } from 'mongoose';
 import { v4 as UUID } from 'uuid';
 
 import Rol from '../enums/Rol';
-import { User } from '../interfaces/User';
-import { IUser } from '../interfaces/User';
+import { IUser, User } from '../interfaces/User';
 
 export const UserSchema: Schema = new Schema(
     {
@@ -42,7 +41,7 @@ export const UserSchema: Schema = new Schema(
         },
         enabled: {
             type: Boolean,
-            default: true
+            default: false
         }
     },
     {
@@ -69,6 +68,33 @@ export function getUser(username: string, password?: string): Promise<User> {
     }).exec();
 }
 
+export function getUserByFields(config: User): Promise<User> {
+    return UserModel.findOne(
+        { $or: [config] },
+        {
+            enabled: 0,
+            _id: 0,
+            password: 0,
+            createdAt: 0,
+            updatedAt: 0,
+            __v: 0
+        }
+    ).exec();
+}
+
 export function createUser(user: User) {
     return new UserModel(user).save();
+}
+
+export function removeUser(user: User) {
+    return new UserModel(user).save();
+}
+
+export function enableUser(public_id: string) {
+    return UserModel.updateOne(
+        { public_id },
+        {
+            $set: { enabled: true }
+        }
+    ).exec();
 }

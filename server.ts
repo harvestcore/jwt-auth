@@ -1,12 +1,12 @@
 import express, { NextFunction, Request, Response } from 'express';
-import { v4 as UUID } from 'uuid';
 
 import { createUser } from './src/models/User';
 import authManager from './src/authManager';
 import logging from './src/config/logging';
+import configManager from './src/config/configManager';
 
 const NAMESPACE = 'Server';
-const PORT = 8080;
+const SERVER_PORT = configManager.get('SERVER_PORT');
 
 const app = express();
 
@@ -45,11 +45,9 @@ app.post('/login', async (req: Request, res: Response) => {
 app.post('/validate', async (req: Request, res: Response) => {
     const { username, password, code } = req.body;
 
-    const token = await authManager.validate(username, password, code);
+    const response = await authManager.validate(username, password, code);
 
-    return res.status(201).json({
-        token
-    });
+    return res.status(201).json(response);
 });
 
 app.post('/', (req: Request, res: Response) => {
@@ -88,4 +86,6 @@ app.post('/', (req: Request, res: Response) => {
         });
 });
 
-app.listen(PORT, () => logging.info(NAMESPACE, `Running on port ${PORT}`));
+app.listen(SERVER_PORT, () =>
+    logging.info(NAMESPACE, `Running on port ${SERVER_PORT}`)
+);
