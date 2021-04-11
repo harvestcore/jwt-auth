@@ -1,0 +1,26 @@
+version: '3'
+services:
+    mongo:
+        image: mongo:4.4.2
+        restart: always
+
+    jwtauth:
+        build:
+            context: .
+        restart: always
+        expose:
+            - 8080
+        depends_on:
+            - mongo
+
+    nginx:
+        image: nginx:alpine
+        restart: always
+        ports:
+            - 80:80
+            - 443:443
+        volumes:
+            - ./nginx.conf:/etc/nginx/conf.d/default.conf
+            - ./certs:/etc/nginx/certs
+        depends_on:
+            - jwtauth
