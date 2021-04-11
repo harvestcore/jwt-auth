@@ -27,7 +27,7 @@ app.use((req: Request, res: Response, next: NextFunction) => {
     next();
 });
 
-app.get('/', (req: Request, res: Response) => {
+app.get('/', (_: Request, res: Response) => {
     return res.status(200).json({
         status: true
     });

@@ -29,7 +29,6 @@ import {
 } from './models/User';
 
 const CRYPTO_ENC_KEY = configManager.get('CRYPTO_ENC_KEY');
-const CRYPTO_IV_KEY = configManager.get('CRYPTO_IV_KEY');
 const JWT_ENC_KEY = configManager.get('JWT_ENC_KEY');
 const MAX_LOGIN_RETRIES = configManager.get('MAX_LOGIN_RETRIES');
 const MAX_VALIDATE_RETRIES = configManager.get('MAX_VALIDATE_RETRIES');
@@ -38,7 +37,7 @@ const SERVER_EMAIL = configManager.get('SERVER_EMAIL');
 const SERVER_EMAIL_PASS = configManager.get('SERVER_EMAIL_PASS');
 const SERVER_EMAIL_SERVICE = configManager.get('SERVER_EMAIL_SERVICE');
 
-const ENC_ALG = 'aes-256-ctr';
+const ENC_ALG = 'aes-256-ecb';
 const NAMESPACE = 'AuthManager';
 
 function generateCode() {
@@ -49,9 +48,6 @@ class AuthManager {
     private mongoEngine: MongoEngine;
     private emailer: any;
     private newUsersByCode: Map<string, User>;
-
-    private cipher: crypto.Cipher;
-    private decipher: crypto.Decipher;
 
     constructor() {
         this.mongoEngine = new MongoEngine();
@@ -71,36 +67,22 @@ class AuthManager {
             this.newUsersByCode.forEach(value => removeUser(value));
             removeDisabledUsers();
         }, 300000);
-
-        this.cipher = crypto.createCipheriv(
-            ENC_ALG,
-            CRYPTO_ENC_KEY,
-            CRYPTO_IV_KEY
-        );
-
-        this.decipher = crypto.createDecipheriv(
-            ENC_ALG,
-            CRYPTO_ENC_KEY,
-            CRYPTO_IV_KEY
-        );
     }
 
     private encrypt(value: string): string {
-        const encrypted = Buffer.concat([
-            this.cipher.update(value),
-            this.cipher.final()
-        ]);
+        const cipher = crypto.createCipheriv(ENC_ALG, CRYPTO_ENC_KEY, null);
+        const encrypted =
+            cipher.update(value, 'utf8', 'base64') + cipher.final('base64');
 
-        return encrypted.toString('hex');
+        return encrypted;
     }
 
     private decrypt(value: string): string {
-        const decrypted = Buffer.concat([
-            this.decipher.update(Buffer.from(value, 'hex')),
-            this.decipher.final()
-        ]);
+        const decipher = crypto.createDecipheriv(ENC_ALG, CRYPTO_ENC_KEY, null);
+        const decrypted =
+            decipher.update(value, 'base64', 'utf8') + decipher.final('utf8');
 
-        return decrypted.toString('hex');
+        return decrypted;
     }
 
     private sendEmail(to: string, code: string): void {
