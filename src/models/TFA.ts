@@ -28,9 +28,8 @@ export const TFAModel = mongoose.model<ITFA>('TFA', TFASchema);
 
 export function createTFA(config: TFA): Promise<TFA> {
     if (!config.exp) {
-        const exp = new Date();
-        exp.setMinutes(exp.getMinutes() + 5);
-        config.exp = exp;
+        const now = Date.now();
+        config.exp = new Date(now + 5 * 60000);
     }
 
     return new TFAModel(config).save();
@@ -52,8 +51,8 @@ export function increaseTFARetry(public_id: string, retries: number) {
 }
 
 export function blockTFA(public_id: string) {
-    const blocked_until = new Date();
-    blocked_until.setMinutes(blocked_until.getMinutes() + 5);
+    const now = Date.now();
+    const blocked_until = new Date(now + 5 * 60000);
     return TFAModel.updateOne(
         {
             public_id

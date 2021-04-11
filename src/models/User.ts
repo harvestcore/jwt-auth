@@ -59,22 +59,18 @@ export function getUser(username: string, password?: string): Promise<User> {
     }
 
     return UserModel.findOne(config, {
-        enabled: 0,
         _id: 0,
-        password: 0,
         createdAt: 0,
         updatedAt: 0,
         __v: 0
     }).exec();
 }
 
-export function getUserByFields(config: User): Promise<User> {
+export function getUserByFields(config: any): Promise<User> {
     return UserModel.findOne(
         { $or: [config] },
         {
-            enabled: 0,
             _id: 0,
-            password: 0,
             createdAt: 0,
             updatedAt: 0,
             __v: 0

@@ -1,6 +1,5 @@
 import express, { NextFunction, Request, Response } from 'express';
 
-import { createUser } from './src/models/User';
 import authManager from './src/authManager';
 import logging from './src/config/logging';
 import configManager from './src/config/configManager';
@@ -29,30 +28,72 @@ app.use((req: Request, res: Response, next: NextFunction) => {
 });
 
 app.get('/', (req: Request, res: Response) => {
-    res.send('lol');
+    return res.status(200).json({
+        status: true
+    });
 });
 
-app.post('/login', async (req: Request, res: Response) => {
-    const { username, password } = req.body;
+app.get('/check', (req: Request, res: Response) => {
+    const token = req.headers['jwt-access-token'];
+
+    if (token) {
+        const validation = authManager.validateToken(token);
+        const code = validation.status ? 200 : 400;
+        return res.status(code).json(validation);
+    }
+
+    return res.status(400).json({
+        status: false,
+        message: 'Missing token.',
+        metadata: {}
+    });
+});
+
+app.get('/login', async (req: Request, res: Response) => {
+    const basicAuth = req.headers.authorization || '';
+
+    if (!basicAuth.includes('Basic')) {
+        return res.status(422).json({
+            status: false,
+            message: 'Missing authentication.',
+            metadata: {}
+        });
+    }
+
+    const [_, hash] = basicAuth.split('Basic ');
+    const credentials = Buffer.from(hash, 'base64').toString('ascii');
+    const [username, password] = credentials.split(':');
+
+    if (!username || !password) {
+        return res.status(422).json({
+            status: false,
+            message: 'Invalid authentication credentials.',
+            metadata: {}
+        });
+    }
 
     const login = await authManager.login(username, password);
 
-    return res.status(201).json({
-        login
-    });
+    return res.status(200).json(login);
 });
 
 app.post('/validate', async (req: Request, res: Response) => {
     const { username, password, code } = req.body;
 
+    if (!username || !password || !code) {
+        return res.status(422).json({
+            status: false,
+            message: 'Missing fields.',
+            metadata: {}
+        });
+    }
+
     const response = await authManager.validate(username, password, code);
 
-    return res.status(201).json(response);
+    return res.status(200).json(response);
 });
 
-app.post('/', (req: Request, res: Response) => {
-    console.log(req.body);
-
+app.post('/register', async (req: Request, res: Response) => {
     const {
         username,
         password,
@@ -64,26 +105,42 @@ app.post('/', (req: Request, res: Response) => {
         services
     } = req.body;
 
-    return createUser({
-        firstName,
-        lastName,
+    if (!username || !password || !email || !rol) {
+        return res.status(422).json({
+            status: false,
+            message: 'Missing fields.',
+            metadata: {}
+        });
+    }
+
+    const response = await authManager.register({
+        firstName: firstName || '',
+        lastName: lastName || '',
         email,
-        telnumber,
+        telnumber: telnumber || '',
         username,
         password,
         services: services || [],
         rol
-    })
-        .then(user => {
-            return res.status(201).json({
-                user
-            });
-        })
-        .catch(error => {
-            return res.status(422).json({
-                error
-            });
+    });
+
+    return res.status(200).json(response);
+});
+
+app.post('/validate-user', async (req: Request, res: Response) => {
+    const { username, password, code } = req.body;
+
+    if (!username || !password || !code) {
+        return res.status(422).json({
+            status: false,
+            message: 'Missing fields.',
+            metadata: {}
         });
+    }
+
+    const response = await authManager.validateUser(username, password, code);
+
+    return res.status(200).json(response);
 });
 
 app.listen(SERVER_PORT, () =>
