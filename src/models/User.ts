@@ -26,10 +26,14 @@ export const UserSchema: Schema = new Schema(
         },
         username: {
             type: String,
-            unique: true
+            unique: true,
+            lowercase: true,
+            match: /^[A-Za-z]+$/,
+            validate: value => value.length >= 8 && value.length <= 64
         },
         password: {
-            type: String
+            type: String,
+            validate: value => value.length >= 8 && value.length <= 64
         },
         rol: {
             type: String,
@@ -93,4 +97,26 @@ export function enableUser(public_id: string) {
             $set: { enabled: true }
         }
     ).exec();
+}
+
+export function changePassword(public_id: string, password: string) {
+    return UserModel.updateOne(
+        { public_id },
+        {
+            $set: { password }
+        }
+    ).exec();
+}
+
+export async function removeDisabledUsers() {
+    const users = await UserModel.find({ enabled: false }).exec();
+    users.forEach(user => user.remove());
+}
+
+export function validUsername(username: string) {
+    return !/[~`´!#$%\^&*+=\-\[\]\\';,/{}|\\":<>\?]/g.test(username);
+}
+
+export function validPassword(password: string) {
+    return password.length >= 8 && password.length <= 64;
 }

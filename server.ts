@@ -38,8 +38,8 @@ app.get('/check', (req: Request, res: Response) => {
 
     if (token) {
         const validation = authManager.validateToken(token);
-        const code = validation.status ? 200 : 400;
-        return res.status(code).json(validation);
+        const statusCode = validation.status ? 200 : 400;
+        return res.status(statusCode).json(validation);
     }
 
     return res.status(400).json({
@@ -141,6 +141,40 @@ app.post('/validate-user', async (req: Request, res: Response) => {
     const response = await authManager.validateUser(username, password, code);
 
     return res.status(200).json(response);
+});
+
+app.post('/request-password-reset', async (req: Request, res: Response) => {
+    const { username } = req.body;
+
+    if (!username) {
+        return res.status(422).json({
+            status: false,
+            message: 'Missing fields.',
+            metadata: {}
+        });
+    }
+
+    const response = await authManager.requestResetPassword(username);
+    const statusCode = response.status ? 200 : 400;
+
+    return res.status(statusCode).json(response);
+});
+
+app.post('/reset-password', async (req: Request, res: Response) => {
+    const { username, password, code } = req.body;
+
+    if (!username || !password || !code) {
+        return res.status(422).json({
+            status: false,
+            message: 'Missing fields.',
+            metadata: {}
+        });
+    }
+
+    const response = await authManager.resetPassword(username, password, code);
+    const statusCode = response.status ? 200 : 400;
+
+    return res.status(statusCode).json(response);
 });
 
 app.listen(SERVER_PORT, () =>
