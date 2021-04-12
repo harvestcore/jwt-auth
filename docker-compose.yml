@@ -8,8 +8,6 @@ services:
         build:
             context: .
         restart: always
-        expose:
-            - 8080
         depends_on:
             - mongo
 

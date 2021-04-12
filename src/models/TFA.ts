@@ -35,6 +35,12 @@ export function createTFA(config: TFA): Promise<TFA> {
     return new TFAModel(config).save();
 }
 
+export function getTFAbyCode(code: string): Promise<TFA> {
+    return TFAModel.findOne({
+        code
+    }).exec();
+}
+
 export function getTFA(public_id: string): Promise<TFA> {
     return TFAModel.findOne({
         public_id
@@ -65,4 +71,15 @@ export function removeTFA(public_id: string) {
     return TFAModel.deleteOne({
         public_id
     }).exec();
+}
+
+export async function removeExpiredTFA() {
+    const currentDate = Date.now();
+    const tfas = await TFAModel.find({}).exec();
+
+    tfas.forEach(tfa => {
+        if (tfa.exp.getTime() < currentDate) {
+            tfa.remove;
+        }
+    });
 }

@@ -34,7 +34,17 @@ app.get('/', (_: Request, res: Response) => {
 });
 
 app.get('/check', (req: Request, res: Response) => {
-    const token = req.headers['jwt-access-token'];
+    const authorization = req.headers.authorization || '';
+
+    if (!authorization.includes('Bearer')) {
+        return res.status(422).json({
+            status: false,
+            message: 'Missing authentication.',
+            metadata: {}
+        });
+    }
+
+    const token = authorization.replace('Bearer ', '');
 
     if (token) {
         const validation = authManager.validateToken(token);
@@ -60,7 +70,7 @@ app.get('/login', async (req: Request, res: Response) => {
         });
     }
 
-    const [_, hash] = basicAuth.split('Basic ');
+    const hash = basicAuth.replace('Basic ', '');
     const credentials = Buffer.from(hash, 'base64').toString('ascii');
     const [username, password] = credentials.split(':');
 
@@ -78,7 +88,12 @@ app.get('/login', async (req: Request, res: Response) => {
 });
 
 app.post('/validate', async (req: Request, res: Response) => {
-    const { username, password, code } = req.body;
+    const { code } = req.body;
+    const basicAuth = req.headers.authorization || '';
+
+    const hash = basicAuth.replace('Basic ', '');
+    const credentials = Buffer.from(hash, 'base64').toString('ascii');
+    const [username, password] = credentials.split(':');
 
     if (!username || !password || !code) {
         return res.status(422).json({
@@ -128,7 +143,12 @@ app.post('/register', async (req: Request, res: Response) => {
 });
 
 app.post('/validate-user', async (req: Request, res: Response) => {
-    const { username, password, code } = req.body;
+    const { code } = req.body;
+    const basicAuth = req.headers.authorization || '';
+
+    const hash = basicAuth.replace('Basic ', '');
+    const credentials = Buffer.from(hash, 'base64').toString('ascii');
+    const [username, password] = credentials.split(':');
 
     if (!username || !password || !code) {
         return res.status(422).json({
@@ -161,9 +181,9 @@ app.post('/request-password-reset', async (req: Request, res: Response) => {
 });
 
 app.post('/reset-password', async (req: Request, res: Response) => {
-    const { username, password, code } = req.body;
+    const { password, code } = req.body;
 
-    if (!username || !password || !code) {
+    if (!password || !code) {
         return res.status(422).json({
             status: false,
             message: 'Missing fields.',
@@ -171,7 +191,7 @@ app.post('/reset-password', async (req: Request, res: Response) => {
         });
     }
 
-    const response = await authManager.resetPassword(username, password, code);
+    const response = await authManager.resetPassword(code, password);
     const statusCode = response.status ? 200 : 400;
 
     return res.status(statusCode).json(response);

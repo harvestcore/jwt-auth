@@ -27,13 +27,10 @@ export const UserSchema: Schema = new Schema(
         username: {
             type: String,
             unique: true,
-            lowercase: true,
-            match: /^[A-Za-z]+$/,
-            validate: value => value.length >= 8 && value.length <= 64
+            lowercase: true
         },
         password: {
-            type: String,
-            validate: value => value.length >= 8 && value.length <= 64
+            type: String
         },
         rol: {
             type: String,
@@ -114,9 +111,11 @@ export async function removeDisabledUsers() {
 }
 
 export function validUsername(username: string) {
-    return !/[~`´!#$%\^&*+=\-\[\]\\';,/{}|\\":<>\?]/g.test(username);
+    return /^[a-zA-Z0-9]{8,16}$/g.test(username);
 }
 
 export function validPassword(password: string) {
-    return password.length >= 8 && password.length <= 64;
+    return /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,64}$/g.test(
+        password
+    );
 }

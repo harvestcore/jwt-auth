@@ -1,5 +1,5 @@
 import bcrypt from 'bcrypt';
-import crypto from 'crypto';
+import CryptoJS from 'crypto-js';
 import jwt from 'jsonwebtoken';
 import nodemailer from 'nodemailer';
 
@@ -13,7 +13,9 @@ import {
     blockTFA,
     createTFA,
     getTFA,
+    getTFAbyCode,
     increaseTFARetry,
+    removeExpiredTFA,
     removeTFA
 } from './models/TFA';
 import {
@@ -37,7 +39,6 @@ const SERVER_EMAIL = configManager.get('SERVER_EMAIL');
 const SERVER_EMAIL_PASS = configManager.get('SERVER_EMAIL_PASS');
 const SERVER_EMAIL_SERVICE = configManager.get('SERVER_EMAIL_SERVICE');
 
-const ENC_ALG = 'aes-256-ecb';
 const NAMESPACE = 'AuthManager';
 
 function generateCode() {
@@ -66,23 +67,18 @@ class AuthManager {
         setInterval(() => {
             this.newUsersByCode.forEach(value => removeUser(value));
             removeDisabledUsers();
+            removeExpiredTFA();
         }, 300000);
     }
 
     private encrypt(value: string): string {
-        const cipher = crypto.createCipheriv(ENC_ALG, CRYPTO_ENC_KEY, null);
-        const encrypted =
-            cipher.update(value, 'utf8', 'base64') + cipher.final('base64');
-
-        return encrypted;
+        return CryptoJS.AES.encrypt(value, CRYPTO_ENC_KEY).toString();
     }
 
     private decrypt(value: string): string {
-        const decipher = crypto.createDecipheriv(ENC_ALG, CRYPTO_ENC_KEY, null);
-        const decrypted =
-            decipher.update(value, 'base64', 'utf8') + decipher.final('utf8');
-
-        return decrypted;
+        return CryptoJS.AES.decrypt(value, CRYPTO_ENC_KEY).toString(
+            CryptoJS.enc.Utf8
+        );
     }
 
     private sendEmail(to: string, code: string): void {
@@ -107,14 +103,14 @@ class AuthManager {
             // Get the user that matches the username.
             const user = await getUser(username);
 
-            // Check the password.
-            const passwordMatch = await bcrypt.compareSync(
-                password,
-                this.decrypt(user.password)
-            );
-
             // If the user exists and the password matches.
             if (user) {
+                // Check the password.
+                const passwordMatch = await bcrypt.compareSync(
+                    password,
+                    this.decrypt(user.password)
+                );
+
                 // Get the TFA object if existant that matches
                 // the public_id of the user.
                 const currentTFAforUser = await getTFA(user.public_id);
@@ -229,14 +225,14 @@ class AuthManager {
             // Get the user that matches the username.
             const user = await getUser(username);
 
-            // Check the password.
-            const passwordMatch = await bcrypt.compareSync(
-                password,
-                this.decrypt(user.password)
-            );
-
             // If the user exists and the password matches.
             if (user) {
+                // Check the password.
+                const passwordMatch = await bcrypt.compareSync(
+                    password,
+                    this.decrypt(user.password)
+                );
+
                 // Get the TFA object if existant that matches
                 // the public_id of the user.
                 const currentTFAforUser = await getTFA(user.public_id);
@@ -338,10 +334,19 @@ class AuthManager {
             const hash = await bcrypt.hash(user.password, salt);
 
             // Else, create a new user.
-            const newUser = await createUser({
-                ...user,
-                password: this.encrypt(hash)
-            });
+            let newUser = null;
+            try {
+                newUser = await createUser({
+                    ...user,
+                    password: this.encrypt(hash)
+                });
+            } catch (e) {
+                return {
+                    status: false,
+                    message: 'Registration process failed.',
+                    metadata: {}
+                };
+            }
 
             // If the user has been created.
             if (newUser) {
@@ -349,7 +354,9 @@ class AuthManager {
                 const code = generateCode();
 
                 // Store this user in the map.
-                this.newUsersByCode.set(code, user);
+                this.newUsersByCode.set(code, newUser);
+
+                console.log(this.newUsersByCode);
 
                 // Send the email.
                 this.sendEmail(user.email, code);
@@ -378,22 +385,29 @@ class AuthManager {
             // Get the user from the new added users.
             const disabled = this.newUsersByCode.get(code);
 
-            const passwordMatch = await bcrypt.compareSync(
-                password,
-                this.decrypt(disabled.password)
-            );
+            if (disabled) {
+                const passwordMatch = await bcrypt.compareSync(
+                    password,
+                    this.decrypt(disabled.password)
+                );
 
-            // If existant.
-            if (disabled && disabled.username === username && passwordMatch) {
-                // Enable this user and remove it from the map.
-                await enableUser(disabled.public_id);
-                this.newUsersByCode.delete(code);
+                console.log(passwordMatch);
 
-                return {
-                    status: false,
-                    message: 'User verified and enabled.',
-                    metadata: {}
-                };
+                // If existant.
+                if (
+                    disabled.username === username.toLowerCase() &&
+                    passwordMatch
+                ) {
+                    // Enable this user and remove it from the map.
+                    await enableUser(disabled.public_id);
+                    this.newUsersByCode.delete(code);
+
+                    return {
+                        status: false,
+                        message: 'User verified and enabled.',
+                        metadata: {}
+                    };
+                }
             }
         }
 
@@ -477,7 +491,7 @@ class AuthManager {
 
                         return {
                             status: true,
-                            message: '2FA. Email sent.',
+                            message: 'Reset code sent to email.',
                             metadata: {}
                         };
                     }
@@ -492,101 +506,76 @@ class AuthManager {
         };
     }
 
-    async resetPassword(
-        username: string,
-        newPassword: string,
-        code: string
-    ): Promise<Response> {
-        if (validUsername(username) && validPassword(newPassword) && code) {
-            const user = await getUser(username);
+    async resetPassword(code: string, newPassword: string): Promise<Response> {
+        if (validPassword(newPassword) && code) {
+            const currentTFAforUser = await getTFAbyCode(code);
 
-            // If existant.
-            if (user) {
-                const currentTFAforUser = await getTFA(user.public_id);
-                const public_id = user.public_id;
+            // If the TFA exists.
+            if (currentTFAforUser) {
+                const public_id = currentTFAforUser.public_id;
+                const currentDate = Date.now();
 
-                // If the TFA exists.
-                if (currentTFAforUser) {
-                    const currentDate = Date.now();
-
-                    // Check if the TFA has expired.
-                    if (currentTFAforUser.exp.getTime() < currentDate) {
-                        await removeTFA(user.public_id);
-                        return {
-                            status: false,
-                            message: 'Reset expired, please try again.',
-                            metadata: {}
-                        };
-                    }
-
-                    // Check if the TFA is blocked.
-                    if (
-                        currentTFAforUser.blocked_until &&
-                        currentTFAforUser.blocked_until.getTime() > currentDate
-                    ) {
-                        return {
-                            status: false,
-                            message: 'Reset blocked.',
-                            metadata: {}
-                        };
-                    }
-
-                    const result = await changePassword(
-                        user.public_id,
-                        newPassword
-                    );
-
-                    if (result.nModified === 1) {
-                        return {
-                            status: false,
-                            message: 'Password updated.',
-                            metadata: {}
-                        };
-                    }
-
-                    const retries = currentTFAforUser.retries.valueOf() + 1;
-
-                    // Check TFA retries.
-                    if (retries > MAX_LOGIN_RETRIES) {
-                        blockTFA(public_id);
-                        return {
-                            status: false,
-                            message:
-                                'Maximum retries exceded. Reset blocked for 5 minutes.',
-                            metadata: {}
-                        };
-                    } else {
-                        // Increase retries on every login attempt.
-                        await increaseTFARetry(public_id, retries);
-                    }
-
+                // Check if the TFA has expired.
+                if (currentTFAforUser.exp.getTime() < currentDate) {
+                    await removeTFA(public_id);
                     return {
                         status: false,
-                        message: 'Code already sent.',
+                        message: 'Reset expired, please try again.',
+                        metadata: {}
+                    };
+                }
+
+                // Check if the TFA is blocked.
+                if (
+                    currentTFAforUser.blocked_until &&
+                    currentTFAforUser.blocked_until.getTime() > currentDate
+                ) {
+                    return {
+                        status: false,
+                        message: 'Reset blocked.',
+                        metadata: {}
+                    };
+                }
+
+                // Create hashed password.
+                const salt = await bcrypt.genSalt(Number(SALT_ROUNDS));
+                const hash = await bcrypt.hash(newPassword, salt);
+
+                const result = await changePassword(
+                    public_id,
+                    this.encrypt(hash)
+                );
+
+                if (result.nModified === 1) {
+                    removeTFA(public_id);
+                    return {
+                        status: false,
+                        message: 'Password updated.',
+                        metadata: {}
+                    };
+                }
+
+                const retries = currentTFAforUser.retries.valueOf() + 1;
+
+                // Check TFA retries.
+                if (retries > MAX_LOGIN_RETRIES) {
+                    blockTFA(public_id);
+                    return {
+                        status: false,
+                        message:
+                            'Maximum retries exceded. Reset blocked for 5 minutes.',
                         metadata: {}
                     };
                 } else {
-                    const twoFactor: TFA = {
-                        public_id: public_id,
-                        code: generateCode(),
-                        blocked_until: null,
-                        retries: 1,
-                        exp: null
-                    };
-
-                    // Create a new TFA.
-                    const newTFA = await createTFA(twoFactor);
-
-                    if (newTFA) {
-                        this.sendEmail(user.email, newTFA.code);
-
-                        return {
-                            status: true,
-                            message: '2FA. Email sent.',
-                            metadata: {}
-                        };
-                    }
+                    // Increase retries on every login attempt.
+                    await increaseTFARetry(public_id, retries);
                 }
+
+                return {
+                    status: false,
+                    message: 'Code already sent.',
+                    metadata: {}
+                };
             }
         }
 
